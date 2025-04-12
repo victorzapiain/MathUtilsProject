@@ -2,15 +2,16 @@ pipeline {
     agent any
 
     environment {
-        SONARQUBE = 'SonarQube' // Update with your actual SonarQube server name if different
-        MAVEN_HOME = '/usr/share/maven' // Adjust this if Maven is installed in a different path
-        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64' // Java 17 on Ubuntu
+        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
         EMAIL_RECIPIENT = 'victorzapiain@gmail.com'
+        SONAR_HOST_URL = 'http://localhost:9000'
+        SONAR_PROJECT_KEY = 'MathUtilsProject'
+        SONAR_TOKEN = credentials('sonarqube-token') // Injected securely
     }
 
     tools {
-        maven 'Maven 3.8.1' // Update to match your Maven version label in Jenkins
-        jdk 'JDK 17' // Ensure "JDK 17" is configured in Jenkins Global Tool Configuration
+        maven 'Maven 3.8.1'
+        jdk 'JDK 17'
     }
 
     stages {
@@ -22,25 +23,32 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh "${MAVEN_HOME}/bin/mvn clean install"
-            }
-        }
-
-        stage('Static Code Analysis') {
-            steps {
-                sh "${MAVEN_HOME}/bin/mvn sonar:sonar -Dsonar.projectKey=YourProjectKey -Dsonar.host.url=http://your-sonarqube-server"
+                sh 'mvn clean compile'
             }
         }
 
         stage('Run Tests') {
             steps {
-                sh "${MAVEN_HOME}/bin/mvn test"
+                sh 'mvn test'
             }
         }
 
         stage('Code Coverage') {
             steps {
-                sh "${MAVEN_HOME}/bin/mvn jacoco:report"
+                sh 'mvn jacoco:report'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh """
+                        mvn sonar:sonar \
+                          -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                          -Dsonar.host.url=${SONAR_HOST_URL} \
+                          -Dsonar.login=${SONAR_TOKEN}
+                    """
+                }
             }
         }
 
@@ -50,25 +58,18 @@ pipeline {
             }
         }
 
-        stage('Send Notifications') {
+        stage('Send Notification') {
             steps {
-                script {
-                    emailext(
-                        to: "${EMAIL_RECIPIENT}",
-                        subject: "Build ${currentBuild.fullDisplayName} - ${currentBuild.result}",
-                        body: """
-                        Hello,
-
-                        The build for ${env.JOB_NAME} [#${env.BUILD_NUMBER}] has completed with status: ${currentBuild.result}.
-
-                        View the details at: ${env.BUILD_URL}
-
-                        Regards,
-                        Jenkins CI
-                        """,
-                        mimeType: 'text/plain'
-                    )
-                }
+                emailext(
+                    to: "${EMAIL_RECIPIENT}",
+                    subject: "Build ${currentBuild.fullDisplayName} - ${currentBuild.result}",
+                    body: """
+                        Build result: ${currentBuild.result}
+                        Project: ${env.JOB_NAME}
+                        Build Number: ${env.BUILD_NUMBER}
+                        View build: ${env.BUILD_URL}
+                    """
+                )
             }
         }
     }
@@ -77,4 +78,5 @@ pipeline {
         always {
             junit '**/target/surefire-reports/*.xml'
         }
-        success {
+    }
+}
