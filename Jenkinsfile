@@ -14,7 +14,10 @@ pipeline {
         stage('Checkout') {
             steps {
                 echo 'Checking out code from GitHub...'
-                git 'https://github.com/victorzapiain/MathUtilsProject.git'
+                script {
+                    // Make sure to specify the GitHub repository URL
+                    git 'https://github.com/victorzapiain/MathUtilsProject.git'
+                }
             }
         }
 
