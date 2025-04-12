@@ -1,77 +1,67 @@
 pipeline {
     agent any
-
     environment {
-        EMAIL_RECIPIENT = 'victorzapiain@gmail.com'
-        SONARQUBE_URL = 'http://localhost:9000'  // Your SonarQube URL
-        SONARQUBE_TOKEN = 'sonarqube_token'     // Your SonarQube token
+        // Define the SonarQube server URL and token
+        SONARQUBE_URL = 'http://localhost:9000'
+        SONARQUBE_TOKEN = 'sonarqube_token'
     }
-
     tools {
-        maven 'Maven 3'  // Ensure Maven 3 is installed on Jenkins
+        // Ensure that Maven and JDK 17 are available in Jenkins
+        maven 'Maven 3'  // Adjust based on the Maven version installed in Jenkins
         jdk 'JDK 17'     // Ensure JDK 17 is installed on Jenkins
     }
-
     stages {
         stage('Checkout') {
             steps {
-                echo 'Checking out code...'
-                checkout scm
+                echo 'Checking out code from GitHub...'
+                git 'https://github.com/victorzapiain/MathUtilsProject.git'
             }
         }
 
         stage('Build') {
             steps {
-                echo 'Building the project...'
+                echo 'Building project using Maven...'
                 sh 'mvn clean install'
             }
         }
 
-        stage('Test') {
+        stage('SonarQube Analysis') {
+            steps {
+                echo 'Running SonarQube analysis...'
+                script {
+                    sh '''
+                    mvn sonar:sonar \
+                        -Dsonar.host.url=${SONARQUBE_URL} \
+                        -Dsonar.login=${SONARQUBE_TOKEN} \
+                        -Dsonar.projectKey=MathUtilsProject \
+                        -Dsonar.projectName=MathUtilsProject \
+                        -Dsonar.projectVersion=1.0
+                    '''
+                }
+            }
+        }
+
+        stage('Run Tests') {
             steps {
                 echo 'Running unit tests...'
                 sh 'mvn test'
             }
         }
 
-        stage('SonarQube Analysis') {
+        stage('Code Coverage') {
             steps {
-                script {
-                    echo 'Running SonarQube analysis...'
-                    sh '''
-                    mvn sonar:sonar \
-                        -Dsonar.host.url=${SONARQUBE_URL} \
-                        -Dsonar.login=${SONARQUBE_TOKEN}
-                    '''
-                }
-            }
-        }
-
-        stage('Notify') {
-            steps {
-                echo 'Sending notification...'
-                emailext(
-                    to: "${EMAIL_RECIPIENT}",
-                    subject: "Build ${env.JOB_NAME} #${env.BUILD_NUMBER} - ${currentBuild.result}",
-                    body: """
-                        Build result: ${currentBuild.result}
-                        Project: ${env.JOB_NAME}
-                        Build Number: ${env.BUILD_NUMBER}
-                        View build: ${env.BUILD_URL}
-                    """
-                )
+                echo 'Generating code coverage report with JaCoCo...'
+                sh 'mvn jacoco:report'
             }
         }
     }
 
     post {
-        always {
-            echo 'Always run this...'
-            junit '**/target/surefire-reports/*.xml'  // Publish JUnit test results
-
-            // JaCoCo code coverage report
-            jacoco()
+        success {
+            echo 'Pipeline completed successfully.'
+        }
+        failure {
+            echo 'Pipeline failed.'
         }
     }
 }
-
