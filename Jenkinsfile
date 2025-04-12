@@ -3,15 +3,21 @@ pipeline {
 
     environment {
         JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
+        PATH = "${JAVA_HOME}/bin:${env.PATH}"
         EMAIL_RECIPIENT = 'victorzapiain@gmail.com'
         SONAR_HOST_URL = 'http://localhost:9000'
         SONAR_PROJECT_KEY = 'MathUtilsProject'
-        SONAR_TOKEN = credentials('sonarqube-token') // Injected securely
+        SONAR_TOKEN = credentials('sonarqube-token')
     }
 
     tools {
         maven 'Maven 3.8.1'
         jdk 'JDK 17'
+    }
+
+    options {
+        skipDefaultCheckout(false)
+        timestamps()
     }
 
     stages {
@@ -27,13 +33,13 @@ pipeline {
             }
         }
 
-        stage('Run Tests') {
+        stage('Unit Test') {
             steps {
                 sh 'mvn test'
             }
         }
 
-        stage('Code Coverage') {
+        stage('Code Coverage (JaCoCo)') {
             steps {
                 sh 'mvn jacoco:report'
             }
@@ -42,41 +48,20 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh """
-                        mvn sonar:sonar \
-                          -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                          -Dsonar.host.url=${SONAR_HOST_URL} \
-                          -Dsonar.login=${SONAR_TOKEN}
-                    """
+                    sh "mvn sonar:sonar -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN}"
                 }
             }
         }
 
-        stage('Archive Artifacts') {
+        stage('Archive JAR') {
             steps {
                 archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
             }
         }
 
-        stage('Send Notification') {
+        stage('Notify by Email') {
             steps {
                 emailext(
                     to: "${EMAIL_RECIPIENT}",
-                    subject: "Build ${currentBuild.fullDisplayName} - ${currentBuild.result}",
-                    body: """
-                        Build result: ${currentBuild.result}
-                        Project: ${env.JOB_NAME}
-                        Build Number: ${env.BUILD_NUMBER}
-                        View build: ${env.BUILD_URL}
-                    """
-                )
-            }
-        }
-    }
+                    subject: "Build ${env.JOB_NAME} #${env.BUILD_NUMBER} -
 
-    post {
-        always {
-            junit '**/target/surefire-reports/*.xml'
-        }
-    }
-}
