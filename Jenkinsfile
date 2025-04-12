@@ -14,7 +14,10 @@ pipeline {
         stage('Checkout') {
             steps {
                 echo 'Checking out code from GitHub...'
-                git 'https://github.com/victorzapiain/MathUtilsProject.git'
+                script {
+                    // Make sure to specify the GitHub repository URL
+                    git 'https://github.com/victorzapiain/MathUtilsProject.git'
+                }
             }
         }
 
@@ -32,7 +35,10 @@ pipeline {
                     sh '''
                     mvn sonar:sonar \
                         -Dsonar.host.url=${SONARQUBE_URL} \
-                        -Dsonar.login=${SONARQUBE_TOKEN}
+                        -Dsonar.login=${SONARQUBE_TOKEN} \
+                        -Dsonar.projectKey=MathUtilsProject \
+                        -Dsonar.projectName=MathUtilsProject \
+                        -Dsonar.projectVersion=1.0
                     '''
                 }
             }
@@ -49,23 +55,6 @@ pipeline {
             steps {
                 echo 'Generating code coverage report with JaCoCo...'
                 sh 'mvn jacoco:report'
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                echo 'Building Docker image...'
-                sh 'docker build -t my-java-app .'
-            }
-        }
-
-        stage('Push to Docker Hub') {
-            steps {
-                echo 'Pushing Docker image to Docker Hub...'
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                    sh 'docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD'
-                    sh 'docker push my-java-app'
-                }
             }
         }
     }
